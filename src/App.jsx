@@ -184,7 +184,7 @@ function App() {
         </ul>
         {todos.length === 0 && (
           <div className="empty-state">
-            <p>TO-DO 리스트가 없습니다. 추가해 주세요!!</p>
+            <p>TO-DO 리스트를 추가해 주세요!!</p>
           </div>
         )}
       </div>
