@@ -92,6 +92,13 @@ function App() {
         completedAt: doc.data().completedAt?.toDate() || null,
       }));
       setTodos(todoData);
+    }, (error) => {
+      console.error("Firestore onSnapshot error:", error);
+      if (error.code === 'permission-denied') {
+        alert("데이터베이스 접근 권한이 없습니다. 보안 규칙을 확인해 주세요.");
+      } else if (error.code === 'failed-precondition') {
+        alert("Firestore 인덱스가 필요합니다. 콘솔창(F12)의 링크를 클릭해 인덱스를 생성해 주세요.");
+      }
     });
 
     return () => unsubscribe();
@@ -114,7 +121,17 @@ function App() {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error("Login failed:", error);
-      alert("로그인에 실패했습니다.");
+      let message = "로그인에 실패했습니다.";
+      if (error.code === 'auth/operation-not-allowed' || error.code === 'auth/configuration-not-found') {
+        message = "Firebase 콘솔에서 Google 로그인이 활성화되지 않았습니다. Authentication > Sign-in method에서 Google을 '사용 설정'해 주세요.";
+      } else if (error.code === 'auth/unauthorized-domain') {
+        message = "현재 도메인(localhost 등)이 Firebase 승인된 도메인 리스트에 없습니다.";
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        message = "로그인 팝업창이 닫혔습니다.";
+      } else {
+        message += ` (${error.code}: ${error.message})`;
+      }
+      alert(message);
     }
   };
 
@@ -127,19 +144,23 @@ function App() {
       alert('리스트를 입력해 주세요.')
       return
     }
-    if (!user) return;
+    if (!user || !db) return;
+
+    const textToAdd = inputValue;
+    setInputValue(''); // 즉시 초기화하여 사용자 경험 개선
 
     try {
       await addDoc(collection(db, "todos"), {
         uid: user.uid,
-        text: inputValue,
+        text: textToAdd,
         completed: false,
         createdAt: serverTimestamp(),
-        order: todos.length > 0 ? todos[0].order - 1 : 0, // 새로운 항목을 가장 위에 배치 (사용자 요청 반영: setTodos([newTodo,...todos]))
+        order: todos.length > 0 ? todos[0].order - 1 : 0,
       });
-      setInputValue('')
     } catch (error) {
       console.error("Error adding todo:", error);
+      setInputValue(textToAdd); // 실패 시 값 복구
+      alert("항목 추가에 실패했습니다.");
     }
   }
 
