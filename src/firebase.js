@@ -12,10 +12,20 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Firebase 초기화
-const app = initializeApp(firebaseConfig);
+// 필수 설정값이 있는지 확인
+const isFirebaseConfigured = !!firebaseConfig.apiKey;
 
-// 가용한 서비스들
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const googleProvider = new GoogleAuthProvider();
+let auth, db, googleProvider;
+
+if (isFirebaseConfigured) {
+  try {
+    const app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    googleProvider = new GoogleAuthProvider();
+  } catch (error) {
+    console.error("Firebase initialization error:", error);
+  }
+}
+
+export { auth, db, googleProvider, isFirebaseConfigured };

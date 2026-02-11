@@ -34,7 +34,7 @@ import {
   writeBatch,
   serverTimestamp 
 } from "firebase/firestore";
-import { auth, db, googleProvider } from "./firebase";
+import { auth, db, googleProvider, isFirebaseConfigured } from "./firebase";
 import { SortableTodoItem } from './SortableTodoItem';
 import './index.css'
 
@@ -59,6 +59,10 @@ function App() {
 
   // 인증 상태 감시
   useEffect(() => {
+    if (!isFirebaseConfigured || !auth) {
+      setLoading(false);
+      return;
+    }
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
@@ -68,7 +72,7 @@ function App() {
 
   // Firestore 데이터 실시간 동기화
   useEffect(() => {
-    if (!user) {
+    if (!user || !db) {
       setTodos([]);
       return;
     }
@@ -255,6 +259,27 @@ function App() {
       <div className="loading-container">
         <div className="loader"></div>
         <p>기다려 주세용...</p>
+      </div>
+    );
+  }
+
+  // Firebase 설정이 안 된 경우 안내 화면 표시
+  if (!isFirebaseConfigured) {
+    return (
+      <div className="login-container">
+        <div className="login-card">
+          <h1>설정 필요</h1>
+          <p>Firebase 설정이 누락되었습니다.<br/><code>.env</code> 파일을 생성하고 Firebase API 키를 입력해 주세요.</p>
+          <div style={{ textAlign: 'left', background: '#1e293b', padding: '20px', borderRadius: '16px', fontSize: '0.9rem', color: '#94a3b8', marginTop: '20px' }}>
+            <p style={{ margin: '0 0 10px 0', color: '#22d3ee', fontWeight: 'bold' }}>💡 해결 방법:</p>
+            <ol style={{ paddingLeft: '20px', margin: 0, lineHeight: '1.6' }}>
+              <li>프로젝트 루트에 <code>.env</code> 파일을 만듭니다.</li>
+              <li><code>.env.example</code>의 내용을 복사해 붙여넣습니다.</li>
+              <li>Firebase 콘솔의 설정을 각 항목에 입력합니다.</li>
+              <li>터미널에서 <code>npm run dev</code>를 재시작하세요.</li>
+            </ol>
+          </div>
+        </div>
       </div>
     );
   }
