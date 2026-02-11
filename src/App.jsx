@@ -1,16 +1,44 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
+import {
+  DndContext,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { SortableTodoItem } from './SortableTodoItem';
 import './index.css'
 
 function App() {
   const [todos, setTodos] = useState([])
   const [inputValue, setInputValue] = useState('')
   const [isScrolled, setIsScrolled] = useState(false)
+  const [activeId, setActiveId] = useState(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(prev => {
-        // Hysteresis: Use a higher threshold to enter scroll mode (to account for height reduction)
-        // and a lower threshold to exit it.
         if (!prev && window.scrollY > 120) return true
         if (prev && window.scrollY < 20) return false
         return prev
@@ -26,7 +54,7 @@ function App() {
       return
     }
     const newTodo = {
-      id: Date.now(),
+      id: Date.now().toString(),
       text: inputValue,
       completed: false,
       createdAt: new Date(),
@@ -80,7 +108,6 @@ function App() {
     }).replace(/(\d{2})\. (\d{2})\. (\d{2})\./, '$1.$2.$3');
     
     if (isEnd) {
-      // 종료 시간은 사용자 요청에 따라 마스킹 (점 구분)
       return formatted.replace(/:/g, '.');
     }
     return formatted;
@@ -96,9 +123,43 @@ function App() {
     }
   }
 
+  const handleDragStart = (event) => {
+    setActiveId(event.active.id);
+  };
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setTodos((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+    setActiveId(null);
+  };
+
+  const handleDragCancel = () => {
+    setActiveId(null);
+  };
+
   const totalTodos = todos.length;
   const completedTodos = todos.filter(t => t.completed).length;
   const progressPercentage = totalTodos === 0 ? 0 : Math.round((completedTodos / totalTodos) * 100);
+
+  const dropAnimation = {
+    sideEffects: defaultDropAnimationSideEffects({
+      styles: {
+        active: {
+          opacity: '0.4',
+        },
+      },
+    }),
+  };
+
+  const activeTodo = activeId ? todos.find(t => t.id === activeId) : null;
 
   return (
     <div className="todo-container">
@@ -142,46 +203,63 @@ function App() {
       </div>
 
       <div className="content-body">
-        <ul className="todo-list" id="todo-list">
-          {todos.map(todo => (
-            <li key={todo.id} className={`todo-item ${todo.completed ? 'completed' : ''}`}>
-              <div className="todo-main">
-                <label className="checkbox-container">
-                  <input 
-                    type="checkbox" 
-                    checked={todo.completed} 
-                    onChange={() => toggleTodo(todo.id)}
-                    className="todo-checkbox"
-                  />
-                  <span className="checkmark"></span>
-                </label>
-                <div className="todo-content" onClick={() => toggleTodo(todo.id)}>
-                  <span className="todo-text">{todo.text}</span>
-                  <div className="todo-time-info">
-                    <span className="todo-time">생성 {formatDateTime(todo.createdAt)}</span>
-                    {todo.completed && (
-                      <>
-                        <span className="todo-time">종료 {formatDateTime(todo.completedAt, true)}</span>
-                        <span className="todo-duration">{formatDuration(todo.createdAt, todo.completedAt)}</span>
-                      </>
-                    )}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          <SortableContext
+            items={todos.map(todo => todo.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <ul className="todo-list" id="todo-list">
+              {todos.map(todo => (
+                <SortableTodoItem
+                  key={todo.id}
+                  todo={todo}
+                  toggleTodo={toggleTodo}
+                  deleteTodo={deleteTodo}
+                  formatDateTime={formatDateTime}
+                  formatDuration={formatDuration}
+                />
+              ))}
+            </ul>
+          </SortableContext>
+          
+          {createPortal(
+            <DragOverlay dropAnimation={dropAnimation}>
+              {activeId ? (
+                <div className="todo-item dragging-overlay">
+                  <div className="todo-main">
+                    <div className="drag-handle" style={{ color: '#22d3ee' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="9" cy="5" r="1"></circle>
+                        <circle cx="9" cy="12" r="1"></circle>
+                        <circle cx="9" cy="19" r="1"></circle>
+                        <circle cx="15" cy="5" r="1"></circle>
+                        <circle cx="15" cy="12" r="1"></circle>
+                        <circle cx="15" cy="19" r="1"></circle>
+                      </svg>
+                    </div>
+                    <label className="checkbox-container">
+                      <input type="checkbox" checked={activeTodo?.completed} readOnly className="todo-checkbox" />
+                      <span className="checkmark"></span>
+                    </label>
+                    <div className="todo-content">
+                      <span className="todo-text">{activeTodo?.text}</span>
+                      <div className="todo-time-info">
+                        <span className="todo-time">생성 {formatDateTime(activeTodo?.createdAt)}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <button 
-                onClick={() => deleteTodo(todo.id)} 
-                className="delete-btn"
-                aria-label={`Delete ${todo.text}`}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 6h18"></path>
-                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                </svg>
-              </button>
-            </li>
-          ))}
-        </ul>
+              ) : null}
+            </DragOverlay>,
+            document.body
+          )}
+        </DndContext>
         {todos.length === 0 && (
           <div className="empty-state">
             <p>TO-DO 리스트를 추가해 주세요!!</p>

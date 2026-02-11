@@ -15,17 +15,25 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
+  padding: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: #0f172a; /* Fallback */
   background: radial-gradient(circle at top right, rgba(34, 211, 238, 0.05), transparent),
               radial-gradient(circle at bottom left, rgba(167, 139, 250, 0.05), transparent);
+  /* 레이아웃 방해 요소 일체 제거 */
+  display: block !important;
+  position: static !important;
 }
 
 #root {
+  display: block;
   max-width: 500px;
   margin: 0 auto;
   padding: 2rem;
@@ -267,8 +275,14 @@ button.add-btn:active {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.03);
   border-radius: 20px;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   animation: slideIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* 드래그 중인 항목이나 오버레이에서는 애니메이션(transform 간섭) 제거 */
+.todo-item.dragging, 
+.dragging-overlay {
+  animation: none !important;
+  transform: none;
 }
 
 .todo-item:hover {
@@ -282,7 +296,55 @@ button.add-btn:active {
   align-items: center;
   gap: 16px;
   flex: 1;
-  cursor: pointer;
+}
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  color: #64748b;
+  cursor: grab !important;
+}
+
+.drag-handle:hover {
+  background: rgba(34, 211, 238, 0.1);
+  color: #22d3ee;
+}
+
+.drag-handle:active {
+  cursor: grabbing !important;
+}
+
+.todo-item.dragging {
+  opacity: 0.3; /* 리스트 내 원본 위치는 반투명하게 */
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.dragging-overlay {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  background: rgba(30, 41, 59, 0.98) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8) !important;
+  border: 1px solid rgba(34, 211, 238, 0.6) !important;
+  cursor: grabbing !important;
+  z-index: 99999 !important;
+  border-radius: 20px;
+  pointer-events: none;
+  
+  /* 드래그 오버레이 너비 고정 */
+  width: 436px !important;
+  box-sizing: border-box;
+}
+
+@media (max-width: 600px) {
+  .dragging-overlay {
+    width: calc(100vw - 2.5rem) !important;
+  }
 }
 
 /* Custom Checkbox */
